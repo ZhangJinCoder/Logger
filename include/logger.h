@@ -57,6 +57,12 @@ struct LogMessage {
     std::string message;    // 日志内容
 };
 
+#if defined(_WIN32) || defined(_WIN64)  
+#define LOG_SLEEP(n) Sleep(n);  // 单位为毫秒    
+#else 
+#define LOG_SLEEP(n) usleep(1000 * n);  // 单位为毫秒
+#endif
+
 class Logger {
 private:
     bool running;           // 是否运行
@@ -122,6 +128,7 @@ public:
             }
             // std::cout << "定时器线程结束" << std::endl;
         });
+        LOG_SLEEP(100); // 等待日志处理线程启动
     }
 
 public:
@@ -177,7 +184,6 @@ public:
     {
 #if defined(_WIN32) || defined(_WIN64)
         logFileName = getCurrentLogFileName();
-        std::cout << "createLogFile: " << logFileName << std::endl;
         // 创建并打开日志文件
         logFileHandle = CreateFile(logFileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (logFileHandle == INVALID_HANDLE_VALUE) {
@@ -188,7 +194,6 @@ public:
         SetFilePointer(logFileHandle, 0, NULL, FILE_END);
 #else
         logFileName = getCurrentLogFileName();
-        std::cout << "createLogFile: " << logFileName << std::endl;
         // 创建并打开日志文件
         logfp = std::ofstream(logFileName, std::ios::app);
         if (logfp.is_open()) {
@@ -346,7 +351,7 @@ protected:
             try {
                 std::lock_guard<std::mutex> lock(configMtx); // 加锁，防止多线程同时修改配置
                 int _logLevel = std::stoi(log_map["log_level"].c_str());
-                if(_logLevel >= LV_TRACE && _logLevel <= LV_FATAL) {
+                if(_logLevel >= LV_TRACE && _logLevel <= LV_CLOSE) {
                     this->logLevel = static_cast<LogLevel>(_logLevel);
                     // log(LV_CLOSE, "日志输出级别变更为: %s", LogLevelNames[_logLevel].c_str()); // 记录日志级别变更日志
                 }
@@ -440,13 +445,6 @@ static const char* my_basename(const char* path) {
             logger->log(level, "[%s:%d] " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__); \
         } \
     } while (0)
-
-#if defined(_WIN32) || defined(_WIN64)  
-#define LOG_SLEEP(n) Sleep(n);  // 单位为毫秒    
-#else 
-#define LOG_SLEEP(n) usleep(1000 * n);  // 单位为毫秒
-#endif
-
 // 使用通用日志宏定义具体的日志级别宏
 #define LOG_TRACE(fmt, ...) LOG(LV_TRACE, fmt, ##__VA_ARGS__)
 #define LOG_DEBUG(fmt, ...) LOG(LV_DEBUG, fmt, ##__VA_ARGS__)
