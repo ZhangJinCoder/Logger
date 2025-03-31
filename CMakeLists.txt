@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 配置编译选项
-add_compile_options(-Wno-unused -Wall -g)
+add_compile_options(-Wall -g)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pipe -std=c99 -lpthread -lm -O2 ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -std=c++17 -O3")
 
@@ -18,7 +18,6 @@ set(CMAKE_BUILD_TYPE Release) # Debug/Release/RelWithDebInfo/MinSizeRel
 # 添加include目录
 include_directories(
     include
-    src
 )
 
 link_directories(
@@ -26,7 +25,7 @@ link_directories(
 )
 
 link_libraries(
-    -pthread
+    -lpthread
     -ldl
 )
 

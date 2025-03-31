@@ -1,36 +1,41 @@
-#ifndef LOGGER_HPP
-#define LOGGER_HPP
-
+#ifndef LOGGER_H
+#define LOGGER_H
 #include <iostream>
-#include <fstream>
 #include <string>
-#include <cstring>
+#include <sys/stat.h>
+#include <cstdarg>
+#include <mutex>
+#include <map>
 #include <queue>
 #include <thread>
-#include <mutex>
+#include <fstream>
+#include <algorithm>
 #include <condition_variable>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+// #include <sys/stat.h>
+#include <io.h>
+#include <direct.h>
+#else
 #include <chrono>
 #include <ctime>
-#include <cstdarg>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <sstream>
 #include <iomanip>
-#include <map>
-#include <algorithm>
-
-namespace logger {
+#include <sstream>
+#include <string.h>
+#include <sys/types.h>
+#include <iomanip>
+#endif
 
 // 日志级别枚举
 enum LogLevel {
-    TRACE,  // 跟踪信息
-    DEBUG,  // 调试信息
-    INFO,   // 普通信息
-    WARN,   // 告警信息
-    ERROR,  // 错误信息
-    FATAL,  // 严重错误
-    CLOSE,  // 关闭日志
+    LV_TRACE,  // 跟踪信息
+    LV_DEBUG,  // 调试信息
+    LV_INFO,   // 普通信息
+    LV_WARN,   // 告警信息
+    LV_ERROR,  // 错误信息
+    LV_FATAL,  // 严重错误
+    LV_CLOSE,  // 关闭日志
 };
 
 // 日志级别名称
@@ -46,12 +51,11 @@ const std::string LogLevelNames[] = {
 
 // 日志内容结构体
 struct LogMessage {
-    LogLevel level;     // 日志级别
-    std::string time;   // 日志时间
+    LogLevel level;         // 日志级别
+    std::string time;       // 日志时间
     std::string message;    // 日志内容
 };
 
-// 日志管理器
 class Logger {
 private:
     bool running;           // 是否运行
@@ -62,7 +66,6 @@ private:
     std::string logFileName;    // 日志文件名
     std::string logCreateDate;  // 日志创建日期
     std::string logConfigFile;  // 日志配置文件
-
 public:
     // 禁止拷贝构造函数和赋值运算符
     Logger(const Logger&) = delete;
@@ -73,29 +76,18 @@ public:
         this->logModuleName = logModuleName;
         this->logLevel = logLevel;
         this->outputToTerminal = outputToTerminal;
-        // logConfigFile = logDir + "/logger.conf";   // 日志配置文件路径+名称
         logConfigFile = "./logger.conf";   // 日志配置文件名称
     }
-
     ~Logger() {
-        running = false;        // 停止日志处理线程
-        if (logThread.joinable()) {
-            cv.notify_one();    // 唤醒日志处理线程
-            logThread.join();   // 等待线程结束
-        }
-        if(timerThread.joinable()) {
-            timerThread.join(); // 等待线程结束
-        }
-        closeLogFile();         // 关闭日志文件
+        running = false; 
     }
-    static Logger* getInstance(std::string logDir = "./log", std::string logModuleName = "default", LogLevel logLevel = LogLevel::INFO, bool outputToTerminal = true) // 获取单例对象
+    static Logger* getInstance(std::string logDir = "./logs", std::string logModuleName = "default", LogLevel logLevel = LogLevel::LV_INFO, bool outputToTerminal = true) // 获取单例对象
     {
         if (instance == nullptr) {
             instance = new Logger(logDir, logModuleName, logLevel, outputToTerminal);
         }
         return instance;
     }
-
     void start() 
     {
         running = true;
@@ -129,8 +121,8 @@ public:
             // std::cout << "定时器线程结束" << std::endl;
         });
     }
-
-    void log(LogLevel level, const char* fmt, ...) 
+public:
+    inline void log(LogLevel level, const char* fmt, ...) 
     {
         if(!running) return;
         va_list args;
@@ -139,10 +131,26 @@ public:
         va_end(args);
         addLogQueue(level, message);
     }
-
-protected:
     void createLogDir()  // 创建日志目录 
     {
+#if defined(_WIN32) || defined(_WIN64)
+        if (logDir.empty()) {
+            logDir = "./logs";  // 默认日志目录为当前目录下的 logs 文件夹
+        }
+        if (logDir.back() != '\\') {
+            logDir += "\\";  // 如果日志目录不以反斜杠结尾，则添加反斜杠
+        }
+        if (CreateDirectory(logDir.c_str(), NULL)) {
+            std::wcout << L"目录创建成功: " << logDir.c_str() << std::endl;
+        } else {
+            DWORD error = GetLastError();
+            if (error == ERROR_ALREADY_EXISTS) {
+                std::wcout << L"目录已存在: " << logDir.c_str() << std::endl;
+            } else {
+                std::wcout << L"创建目录失败，错误码: " << error << std::endl;
+            }
+        }
+#else
         std::stringstream ss(logDir);
         std::string dir;
         std::string currentPath = "";
@@ -160,11 +168,24 @@ protected:
                 }
             }
         }
+#endif
     }
     void createLogFile()  // 创建日志文件
     {
+#if defined(_WIN32) || defined(_WIN64)
         logFileName = getCurrentLogFileName();
-        // std::cout << "createLogFile: " << logFileName << std::endl;
+        std::cout << "createLogFile: " << logFileName << std::endl;
+        // 创建并打开日志文件
+        logFileHandle = CreateFile(logFileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (logFileHandle == INVALID_HANDLE_VALUE) {
+            std::cerr << "Failed to create log file: " << logFileName << std::endl;
+            return;
+        }
+        // 设置文件指针到文件末尾
+        SetFilePointer(logFileHandle, 0, NULL, FILE_END);
+#else
+        logFileName = getCurrentLogFileName();
+        std::cout << "createLogFile: " << logFileName << std::endl;
         // 创建并打开日志文件
         logfp = std::ofstream(logFileName, std::ios::app);
         if (logfp.is_open()) {
@@ -172,14 +193,23 @@ protected:
         } else {
             std::cerr << "Failed to create log file: " << logFileName << std::endl;
         }
+#endif
     }
     void closeLogFile()  // 关闭日志文件
     {
+#if defined(_WIN32) || defined(_WIN64)
+        if (logFileHandle != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(logFileHandle);
+            CloseHandle(logFileHandle);
+            std::cout << L"closeLogFile: " << logFileName << std::endl;
+        }
+#else
         if (logfp.is_open()) {
             logfp.flush();
             logfp.close();
             std::cout << "closeLogFile: " << logFileName << std::endl;
         }
+#endif
     }
     void needCreateNewLogFile()  // 判断是否需要创建新的日志文件
     {
@@ -187,18 +217,29 @@ protected:
             // 创建新的日志文件
             createLogFile();
             logCreateDate = getDate();
+            // std::cout << "create new log file: " << logCreateDate << std::endl;
         }
     }
     void writeLog(LogLevel level, const std::string date, const std::string& message)  // 写入日志
     {
         needCreateNewLogFile();
+#if defined(_WIN32) || defined(_WIN64)
+        if (logFileHandle!= INVALID_HANDLE_VALUE) {      // 输出到文件
+            if(level < LV_CLOSE) {
+                std::string logMessage = "[" + date + "] [" + LogLevelNames[level] + "] " + message + "\r\n";
+                DWORD bytesWritten = 0;
+                WriteFile(logFileHandle, logMessage.c_str(), logMessage.length(), &bytesWritten, NULL);  
+            }
+        }
+#else
         if (logfp.is_open()) {      // 输出到文件
-            if(level < CLOSE) logfp << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
+            if(level < LV_CLOSE) logfp << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
             else logfp << "[" << date << "] " << message << std::endl;
             logfp.flush();
         }
+#endif 
         if (outputToTerminal) {     // 输出到终端
-            if(level < CLOSE) std::cout << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
+            if(level < LV_CLOSE) std::cout << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
             else std::cout << "[" << date << "] " << message << std::endl;
         }
     }
@@ -209,7 +250,8 @@ protected:
         logQueue.push({level, datetime, message});
         cv.notify_one(); // 唤醒等待的线程
     }
-    std::string format(const char *fmt, va_list args) // 格式化日志消息
+protected:
+    inline std::string format(const char *fmt, va_list args) // 格式化日志消息
     {
         va_list args_copy;
         va_copy(args_copy, args);
@@ -218,12 +260,49 @@ protected:
         
         std::string result(size+1, '\0');
         std::vsnprintf(&result.front(), size+1, fmt, args);
-    
+
         return result;
     }
-
-    bool checkConfigFileChange()  // 检查日志配置文件是否有变化
+    inline bool checkConfigFileChange()  // 检查日志配置文件是否有变化
     {
+#if defined(_WIN32) || defined(_WIN64)
+        // 在 Windows 下使用 GetFileAttributesEx 和 FILETIME
+        FILE_BASIC_INFO fileInfo;
+        HANDLE hFile = CreateFileA(
+            logConfigFile.c_str(),
+            GENERIC_READ,
+            FILE_SHARE_READ,
+            NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        );
+        if (hFile == INVALID_HANDLE_VALUE) {
+            // std::cerr << "日志配置文件不存在: " << logConfigFile << std::endl;
+            return false;
+        }
+        FILETIME lastWriteTime;
+        if (!GetFileTime(hFile, NULL, NULL, &lastWriteTime)) {
+            CloseHandle(hFile);
+            // std::cerr << "无法获取文件时间: " << logConfigFile << std::endl;
+            return false;
+        }
+        CloseHandle(hFile);
+
+        // 将 FILETIME 转换为 std::time_t
+        ULARGE_INTEGER ull;
+        ull.LowPart = lastWriteTime.dwLowDateTime;
+        ull.HighPart = lastWriteTime.dwHighDateTime;
+        // FILETIME 是 100 纳秒单位，转换为秒
+        std::time_t lastModified = ull.QuadPart / 10000000ULL - 11644473600ULL;
+        // 检查配置文件是否被修改
+        static std::time_t configFileLastModified = 0;
+        if (lastModified != configFileLastModified) {
+            configFileLastModified = lastModified;
+            // std::cout << "日志配置文件已修改，重新加载配置文件" << std::endl;
+            return true;
+        }
+#else
         // 检查配置文件是否存在
         struct stat fileStat;
         if (stat(logConfigFile.c_str(), &fileStat) != 0) {
@@ -238,10 +317,10 @@ protected:
             // std::cout << "日志配置文件已修改，重新加载配置文件" << std::endl;
             return true;
         }
+#endif
         return false;
     }
-
-    void loadConfig()  // 加载日志配置文件
+    inline void loadConfig()  // 加载日志配置文件
     {
         log_map.clear();
         std::ifstream configFile(logConfigFile);
@@ -263,9 +342,9 @@ protected:
             try {
                 std::lock_guard<std::mutex> lock(configMtx); // 加锁，防止多线程同时修改配置
                 int _logLevel = std::stoi(log_map["log_level"].c_str());
-                if(_logLevel >= TRACE && _logLevel <= FATAL) {
+                if(_logLevel >= LV_TRACE && _logLevel <= LV_FATAL) {
                     this->logLevel = static_cast<LogLevel>(_logLevel);
-                    log(CLOSE, "日志输出级别变更为: %s", LogLevelNames[_logLevel].c_str()); // 记录日志级别变更日志
+                    // log(LV_CLOSE, "日志输出级别变更为: %s", LogLevelNames[_logLevel].c_str()); // 记录日志级别变更日志
                 }
             }
             catch(const std::exception& e) {
@@ -273,30 +352,48 @@ protected:
             }            
         }
     }
-
-protected:
-    std::string getDate()   // 获取当前日期
+    inline std::string getCurrentLogFileName()  // 获取当前日志文件名
     {
+#if defined(_WIN32) || defined(_WIN64)
+        return logDir + "\\" + logModuleName + "." + getDate() + ".log";
+#else
+        return logDir + "/" + logModuleName + "." + getDate() + ".log";
+#endif
+    }
+    inline std::string getDate()   // 获取当前日期
+    {
+#if defined(_WIN32) || defined(_WIN64)
+        std::time_t now = std::time(nullptr);
+        std::tm* localTime = std::localtime(&now);
+        char buffer[16] = {0};
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", localTime);
+        return std::string(buffer);
+#else
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d");
         return ss.str();
+#endif
     }
-    std::string getDateTime() // 获取当前日期和时间
+    inline std::string getDateTime() // 获取当前日期和时间
     {
+#if defined(_WIN32) || defined(_WIN64)
+        std::time_t now = std::time(nullptr);
+        std::tm* localTime = std::localtime(&now);
+        char buffer[80];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", localTime);
+        return std::string(buffer);
+#else
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S");
         return ss.str();
-    }
-    std::string getCurrentLogFileName()  // 获取当前日志文件名
-    {
-        return logDir + "/" + logModuleName + "." + getDate() + ".log";
+#endif
     }
 
-    std::pair<std::string, std::string> splitByEqual(const std::string& str) {
+    inline std::pair<std::string, std::string> splitByEqual(const std::string& str) {
         size_t pos = str.find('=');
         if (pos == std::string::npos) {
             // 没有找到等号，返回空字符串作为key和value
@@ -304,25 +401,31 @@ protected:
         }
         return std::make_pair(str.substr(0, pos), str.substr(pos + 1));
     }
-
 private:
-    std::ofstream logfp;        // 日志文件流
     static inline Logger* instance = nullptr;    // 单例实例指针
 
-    std::mutex logQueueMtx;     // 日志队列互斥锁
-    std::mutex configMtx;       // 配置变量互斥锁
-    std::condition_variable cv; // 条件变量(日志队列)用于线程同步
-    std::queue<LogMessage> logQueue; // 日志队列
-    std::thread logThread;      // 日志线程成员变量
-    std::thread timerThread;    // 定时器线程成员变量
+#if defined(_WIN32) || defined(_WIN64)
+    HANDLE logFileHandle;  // 日志文件句柄
+#else
+    std::ofstream logfp;        // 日志文件流
+#endif
+    std::mutex configMtx;               // 配置变量互斥锁
+    std::mutex logQueueMtx;             // 日志队列互斥锁
+    std::queue<LogMessage> logQueue;    // 日志队列
+    std::thread logThread;              // 日志线程成员变量
+    std::thread timerThread;            // 定时器线程成员变量
+    std::condition_variable cv;         // 条件变量(日志队列)用于线程同步
     std::map<std::string, std::string> log_map;     // 配置检查信息
 };
 
-// Logger* Logger::instance = nullptr;
-
 static const char* my_basename(const char* path) {
+#if defined(_WIN32) || defined(_WIN64)
+    const char* base = strrchr(path, '\\');
+    return base? base+1 : path;
+#else
     const char* base = strrchr(path, '/');
-    return base ? base+1 : path;
+    return base? base+1 : path;
+#endif
 }
 #define __FILENAME__ my_basename(__FILE__)
 // 定义一个通用的日志宏
@@ -335,13 +438,11 @@ static const char* my_basename(const char* path) {
     } while (0)
 
 // 使用通用日志宏定义具体的日志级别宏
-#define LOG_TRACE(fmt, ...) LOG(TRACE, fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) LOG(DEBUG, fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  LOG(INFO, fmt, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...)  LOG(WARN, fmt, ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) LOG(ERROR, fmt, ##__VA_ARGS__)
-#define LOG_FATAL(fmt, ...) LOG(FATAL, fmt, ##__VA_ARGS__)
+#define LOG_TRACE(fmt, ...) LOG(LV_TRACE, fmt, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) LOG(LV_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)  LOG(LV_INFO, fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...)  LOG(LV_WARN, fmt, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) LOG(LV_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_FATAL(fmt, ...) LOG(LV_FATAL, fmt, ##__VA_ARGS__)
 
-}  // namespace Logger
-
-#endif  // LOGGER_HPP
+#endif // LOGGER_H

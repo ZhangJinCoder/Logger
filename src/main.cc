@@ -1,22 +1,28 @@
 #include <iostream>
-#include <unistd.h>
-#include "logger.hpp"
+#include <string>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>  // 添加这一行来包含 <windows.h> 头文件
+#else
+#include <unistd.h>  // 添加这一行来包含 <unistd.h> 头文件
+#endif
 
-using namespace logger;
-int main(int argc, char *argv[]) {
-   
-    Logger::getInstance("./logs", "vpnserver", TRACE, true)->start();
-    printf("------------->> 测试开始\n");
-    for (int i = 0; i < 100; i++) {
-        LOG_TRACE("Hello World!");
-        LOG_DEBUG("Hello World!");
-        LOG_INFO("Hello World!");
-        LOG_WARN("Hello World!");
-        LOG_ERROR("Hello World!");
-        LOG_FATAL("Hello World!");
+#include "logger.h"  // 添加这一行来包含 logger.h 头文件
+
+int main() {
+    Logger::getInstance("./logs", "test", LV_INFO, true)->start();
+
+    while(1) {
+        LOG_TRACE("This is a trace log message.");
+        LOG_DEBUG("This is a debug log message.");
+        LOG_INFO("This is an info log message.");
+        LOG_WARN("This is a warning log message.");
+        LOG_ERROR("This is an error log message.");
+        LOG_FATAL("This is a fatal log message.");
+#if defined(_WIN32) || defined(_WIN64)
+        Sleep(1000);
+#else
         usleep(1000*1000);
+#endif
     }
-    printf("------------->> 测试结束\n");
-    // usleep(1000*1000);
     return 0;
 }
