@@ -20,6 +20,7 @@
 #else
 #include <chrono>
 #include <ctime>
+#include <unistd.h>
 #include <iomanip>
 #include <sstream>
 #include <string.h>
@@ -66,6 +67,7 @@ private:
     std::string logFileName;    // 日志文件名
     std::string logCreateDate;  // 日志创建日期
     std::string logConfigFile;  // 日志配置文件
+
 public:
     // 禁止拷贝构造函数和赋值运算符
     Logger(const Logger&) = delete;
@@ -121,6 +123,7 @@ public:
             // std::cout << "定时器线程结束" << std::endl;
         });
     }
+
 public:
     inline void log(LogLevel level, const char* fmt, ...) 
     {
@@ -141,13 +144,13 @@ public:
             logDir += "\\";  // 如果日志目录不以反斜杠结尾，则添加反斜杠
         }
         if (CreateDirectory(logDir.c_str(), NULL)) {
-            std::wcout << L"目录创建成功: " << logDir.c_str() << std::endl;
+            std::cout << "目录创建成功: " << logDir.c_str() << std::endl;
         } else {
             DWORD error = GetLastError();
             if (error == ERROR_ALREADY_EXISTS) {
-                std::wcout << L"目录已存在: " << logDir.c_str() << std::endl;
+                std::cout << "目录已存在: " << logDir.c_str() << std::endl;
             } else {
-                std::wcout << L"创建目录失败，错误码: " << error << std::endl;
+                std::cout << "创建目录失败，错误码: " << error << std::endl;
             }
         }
 #else
@@ -250,6 +253,7 @@ public:
         logQueue.push({level, datetime, message});
         cv.notify_one(); // 唤醒等待的线程
     }
+
 protected:
     inline std::string format(const char *fmt, va_list args) // 格式化日志消息
     {
@@ -392,7 +396,6 @@ protected:
         return ss.str();
 #endif
     }
-
     inline std::pair<std::string, std::string> splitByEqual(const std::string& str) {
         size_t pos = str.find('=');
         if (pos == std::string::npos) {
@@ -401,6 +404,7 @@ protected:
         }
         return std::make_pair(str.substr(0, pos), str.substr(pos + 1));
     }
+
 private:
     static inline Logger* instance = nullptr;    // 单例实例指针
 
@@ -436,6 +440,12 @@ static const char* my_basename(const char* path) {
             logger->log(level, "[%s:%d] " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__); \
         } \
     } while (0)
+
+#if defined(_WIN32) || defined(_WIN64)  
+#define LOG_SLEEP(n) Sleep(n);  // 单位为毫秒    
+#else 
+#define LOG_SLEEP(n) usleep(1000 * n);  // 单位为毫秒
+#endif
 
 // 使用通用日志宏定义具体的日志级别宏
 #define LOG_TRACE(fmt, ...) LOG(LV_TRACE, fmt, ##__VA_ARGS__)
