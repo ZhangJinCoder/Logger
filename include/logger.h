@@ -89,14 +89,14 @@ public:
     ~Logger() {
         running = false; 
     }
-    static Logger* getInstance(std::string logDir = "./logs", std::string logModuleName = "default", LogLevel logLevel = LogLevel::LV_INFO, bool outputToTerminal = true) // 获取单例对象
+    inline static Logger* getInstance(std::string logDir = "./logs", std::string logModuleName = "default", LogLevel logLevel = LogLevel::LV_INFO, bool outputToTerminal = true) // 获取单例对象
     {
         if (instance == nullptr) {
             instance = new Logger(logDir, logModuleName, logLevel, outputToTerminal);
         }
         return instance;
     }
-    void start() 
+    inline void start() 
     {
         running = true;
         logCreateDate = getDate();  // 获取当前日期
@@ -141,7 +141,7 @@ public:
         va_end(args);
         addLogQueue(level, message);
     }
-    void createLogDir()  // 创建日志目录 
+    inline void createLogDir()  // 创建日志目录 
     {
 #if defined(_WIN32) || defined(_WIN64)
         if (logDir.empty()) {
@@ -180,7 +180,7 @@ public:
         }
 #endif
     }
-    void createLogFile()  // 创建日志文件
+    inline void createLogFile()  // 创建日志文件
     {
 #if defined(_WIN32) || defined(_WIN64)
         logFileName = getCurrentLogFileName();
@@ -203,7 +203,7 @@ public:
         }
 #endif
     }
-    void closeLogFile()  // 关闭日志文件
+    inline void closeLogFile()  // 关闭日志文件
     {
 #if defined(_WIN32) || defined(_WIN64)
         if (logFileHandle != INVALID_HANDLE_VALUE) {
@@ -219,7 +219,7 @@ public:
         }
 #endif
     }
-    void needCreateNewLogFile()  // 判断是否需要创建新的日志文件
+    inline void needCreateNewLogFile()  // 判断是否需要创建新的日志文件
     {
         if(getDate().compare(logCreateDate) != 0) {
             // 创建新的日志文件
@@ -228,7 +228,7 @@ public:
             // std::cout << "create new log file: " << logCreateDate << std::endl;
         }
     }
-    void writeLog(LogLevel level, const std::string date, const std::string& message)  // 写入日志
+    inline void writeLog(LogLevel level, const std::string date, const std::string& message)  // 写入日志
     {
         needCreateNewLogFile();
 #if defined(_WIN32) || defined(_WIN64)
@@ -251,7 +251,7 @@ public:
             else std::cout << "[" << date << "] " << message << std::endl;
         }
     }
-    void addLogQueue(LogLevel level, const std::string& message) // 添加到日志队列中
+    inline void addLogQueue(LogLevel level, const std::string& message) // 添加到日志队列中
     {
         std::string datetime = getDateTime();
         std::unique_lock<std::mutex> lock(logQueueMtx);
@@ -411,7 +411,7 @@ protected:
     }
 
 private:
-    static inline Logger* instance = nullptr;    // 单例实例指针
+    inline static Logger* instance = nullptr;    // 单例实例指针
 
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE logFileHandle;  // 日志文件句柄
@@ -427,7 +427,7 @@ private:
     std::map<std::string, std::string> log_map;     // 配置检查信息
 };
 
-static const char* my_basename(const char* path) {
+inline static const char* my_basename(const char* path) {
 #if defined(_WIN32) || defined(_WIN64)
     const char* base = strrchr(path, '\\');
     return base? base+1 : path;
