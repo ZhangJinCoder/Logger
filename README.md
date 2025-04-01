@@ -1,19 +1,20 @@
 ## 日志记录器
-## 编译
 
-```shell linux
+#### linux 下编译
+```shell
 mkdir build && cd build
 cmake ..
 make
 ```
-```shell windows
+#### windows 下编译
+```shell
 mkdir build && cd build
 cmake .. 
 cmake --build . --config Release
 ```
 
 ## 2025-04-01
-### 1.0.0
+### 版本号: 1.0.0
 - 新增日志记录器，用于记录日志。
 - 新增日志记录器的配置，用于配置日志记录器。
 - 新增日志记录器的日志级别，用于配置日志记录器的日志级别。
