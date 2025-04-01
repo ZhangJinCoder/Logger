@@ -1,6 +1,6 @@
 ## 日志记录器
 
-#### linux 下编译
+#### linux/mac 下编译
 ```shell
 mkdir build && cd build
 cmake ..
