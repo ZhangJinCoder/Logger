@@ -106,14 +106,15 @@ public:
         logThread = std::thread([this]() {
             // std::cout << "日志处理线程启动" << std::endl;
             while(running) {
-                if(!logQueue.empty())  {
+                while(!logQueue.empty())  {
                     std::unique_lock<std::mutex> lock(logQueueMtx);  // 加锁
                     cv.wait(lock, [this]() { return !logQueue.empty() || !running; });
                     if (!running) break;
                     auto& msg = logQueue.front();
                     if(msg.level >= logLevel) writeLog(msg.level, msg.time, msg.message); // 写入日志
                     logQueue.pop();
-                } 
+                }
+                LOG_SLEEP(10); // 等待10毫秒
             }
             // std::cout << "日志处理线程结束" << std::endl;
         });
