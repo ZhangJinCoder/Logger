@@ -196,10 +196,8 @@ public:
 #else
         logFileName = getCurrentLogFileName();
         // 创建并打开日志文件
-        logfp = std::ofstream(logFileName, std::ios::app);
-        if (logfp.is_open()) {
-            // logfp.close();
-        } else {
+        logfp.open(logFileName, std::ios::app);
+        if (!logfp.is_open()) {
             std::cerr << "Failed to create log file: " << logFileName << std::endl;
         }
 #endif
@@ -381,9 +379,15 @@ protected:
 #else
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
-        std::stringstream ss;
-        ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d");
-        return ss.str();
+        // std::stringstream ss;
+        // ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d");
+        // return ss.str();
+        // C++11兼容版本
+        std::tm tm_snapshot;
+        localtime_r(&in_time_t, &tm_snapshot); // 线程安全版本
+        char buffer[16] = {0};
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &tm_snapshot);
+        return std::string(buffer);
 #endif
     }
     inline std::string getDateTime() // 获取当前日期和时间
@@ -397,9 +401,15 @@ protected:
 #else
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
-        std::stringstream ss;
-        ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S");
-        return ss.str();
+        // std::stringstream ss;
+        // ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S");
+        // return ss.str();
+        // C++11兼容版本
+        std::tm tm_snapshot;
+        localtime_r(&in_time_t, &tm_snapshot); // 线程安全版本
+        char buffer[16] = {0};
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &tm_snapshot);
+        return std::string(buffer);
 #endif
     }
     inline std::pair<std::string, std::string> splitByEqual(const std::string& str) {
@@ -412,12 +422,12 @@ protected:
     }
 
 private:
-    inline static Logger* instance = nullptr;    // 单例实例指针
+    inline static Logger* instance = nullptr;    // 单例实例指针(需要gcc4.8以上版本支持)
 
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE logFileHandle;  // 日志文件句柄
 #else
-    std::ofstream logfp;        // 日志文件流
+    std::ofstream logfp{nullptr};       // 日志文件流
 #endif
     std::mutex configMtx;               // 配置变量互斥锁
     std::mutex logQueueMtx;             // 日志队列互斥锁

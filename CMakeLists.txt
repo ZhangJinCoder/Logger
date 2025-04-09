@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.0)
 project(logger VERSION 3.0.0)
 # 指定编程语言版本，c使用c99标准，c++使用c++11标准。
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
