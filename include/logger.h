@@ -407,8 +407,8 @@ protected:
         // C++11兼容版本
         std::tm tm_snapshot;
         localtime_r(&in_time_t, &tm_snapshot); // 线程安全版本
-        char buffer[16] = {0};
-        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &tm_snapshot);
+        char buffer[20] = {0};  // 扩大缓冲区大小
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_snapshot); // 添加时间格式
         return std::string(buffer);
 #endif
     }
