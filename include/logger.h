@@ -336,7 +336,8 @@ protected:
             std::string line;
             while (std::getline(configFile, line)) {
                 // 去除空格
-                line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
+                // line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
+				line.erase(std::remove_if(line.begin(), line.end(), static_cast<int (*)(int)>(std::isspace)), line.end());
                 // 跳过注释行和空行
                 if(line.c_str()[0] == '#' || line.c_str()[0] == ';' || line.empty()) {
                     continue;
