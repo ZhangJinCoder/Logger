@@ -12,7 +12,7 @@ int main() {
         LOG_WARN("This is a warning log message.");
         LOG_ERROR("This is an error log message.");
         LOG_FATAL("This is a fatal log message.");
-        LOG_SLEEP(10);
+        LOG_SLEEP(1000);
     }
     return 0;
 }
