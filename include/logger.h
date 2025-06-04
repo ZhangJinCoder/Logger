@@ -194,9 +194,14 @@ public:
             } else {
                 currentPath += "/" + dir;
             }
+            if(logDir.c_str()[0] == '/') {
+                currentPath = std::string("/") + currentPath;
+            }
             if (access(currentPath.c_str(), F_OK) != 0) {
                 if (mkdir(currentPath.c_str(), 0755) == -1) {
                     std::cerr << "Failed to create directory: " << currentPath << std::endl;
+                    // 输出失败原因
+                    std::cerr << "Error: " << strerror(errno) << std::endl;
                     return;
                 }
             }
