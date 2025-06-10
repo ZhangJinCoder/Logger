@@ -265,25 +265,21 @@ public:
                 WriteFile(logFileHandle, logMessage.c_str(), logMessage.length(), &bytesWritten, NULL);  
             }
         }
-        if (outputToTerminal) {     // 输出到终端
-            if(level < LV_CLOSE) std::cout << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
-            else std::cout << "[" << date << "] " << message << std::endl;
-        }
 #else
         if (logfp.is_open()) {      // 输出到文件
             if(level < LV_CLOSE) logfp << "[" << date << "] [" << LogLevelNames[level] << "] " << message << std::endl;
             else logfp << "[" << date << "] " << message << std::endl;
             logfp.flush();
         }
-        if (outputToTerminal) {     // 输出到终端
-            if(level < LV_CLOSE) std::cout << "[" << date << "] [" << LogLevelColors[level] << LogLevelNames[level] << LogLevelReset << "] " << message << std::endl;
-            else std::cout << "[" << date << "] " << message << std::endl;
-        }
 #endif 
     }
     inline void addLogQueue(LogLevel level, const std::string& message) // 添加到日志队列中
     {
         std::string datetime = getDateTime();
+        if (outputToTerminal) {     // 输出到终端
+            if(level < LV_CLOSE) std::cout << "[" << datetime << "] [" << LogLevelColors[level] << LogLevelNames[level] << LogLevelReset << "] " << message << std::endl;
+            else std::cout << "[" << datetime << "] " << message << std::endl;
+        }
         std::unique_lock<std::mutex> lock(logQueueMtx);
         logQueue.push({level, datetime, message});
         cv.notify_one(); // 唤醒等待的线程
